@@ -1,0 +1,51 @@
+# Plan folder (Design / Implementation plans, etc.)
+Plan/
+
+# Python build files and cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+.bin/
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE and tool settings
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# OS generated files
+.DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+
+# Runtime data and logs
+logs/
+*.log
+cache/
+outputs/temp/
