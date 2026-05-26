@@ -331,26 +331,44 @@ python -m unittest discover -s tests
 
 # 🚀 시작하기
 
-## 설치 및 실행 (3단계)
+## 설치 및 실행 (4단계)
 
-### Step 1. 환경 설정
+### Step 1. 저장소 복제 및 이동
 ```bash
-python3 -m venv .venv
-.venv\Scripts\activate       # Windows
+git clone <Repository-URL>
+cd SmartEye-Drowsiness-Detection-Python-
+```
+
+### Step 2. 가상환경 생성 및 활성화
+* **Windows (PowerShell)**:
+  ```powershell
+  python -m venv .venv
+  .venv\Scripts\Activate.ps1
+  ```
+  *(참고: 권한 에러 발생 시 `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process` 실행)*
+* **macOS / Linux**:
+  ```bash
+  python3 -m venv .venv
+  source .venv/bin/activate
+  ```
+
+### Step 3. 의존성 패키지 설치
+```bash
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### Step 2. 실행
+### Step 4. 프로그램 실행
 ```bash
 python main.py
 ```
 
-### Step 3. 사용법
-| 키 | 동작 |
-|----|------|
-| 시작 5초 | 정면 응시 → 자동 캘리브레이션 |
-| `c` | 수동 재캘리브레이션 (환경 변화 시) |
-| `q` | 프로그램 종료 |
+## ⌨️ 키보드 조작 및 사용법
+| 기능 | 입력 키 | 동작 설명 |
+|------|:-------:|-----------|
+| **자동 보정 (Calibration)** | 시작 후 5초 | 정면을 편안하게 응시하여 개인 기본 EAR 설정 |
+| **수동 재보정** | `c` | 카메라 각도/조명 변화 시 임계치 실시간 재보정 |
+| **프로그램 종료** | `q` | 카메라 및 비동기 오디오 스레드 안전하게 해제 후 종료 |
 
 ---
 

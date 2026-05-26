@@ -104,6 +104,36 @@ $$EAR = \frac{||P_2 - P_6|| + ||P_3 - P_5||}{2 \times ||P_1 - P_4||}$$
 
 ---
 
+# 🚀 처음 클론 후 시작하기
+
+1. **저장소 복제 및 이동**
+   ```bash
+   git clone <Repository-URL>
+   cd SmartEye-Drowsiness-Detection-Python-
+   ```
+2. **가상환경 생성 및 활성화**
+   * **Windows (PowerShell)**:
+     ```powershell
+     python -m venv .venv
+     .venv\Scripts\Activate.ps1
+     ```
+   * **macOS / Linux**:
+     ```bash
+     python3 -m venv .venv
+     source .venv/bin/activate
+     ```
+3. **의존성 패키지 설치**
+   ```bash
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
+4. **프로그램 구동**
+   ```bash
+   python main.py
+   ```
+
+---
+
 # 🏁 프로젝트의 미래 & 개선 로드맵
 
 * **저조도 성능 개선**: 야간 주행 등 어두운 환경에서의 인식을 보완하기 위한 조도 센서 연동 또는 전처리 필터 탑재
