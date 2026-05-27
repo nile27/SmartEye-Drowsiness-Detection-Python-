@@ -2,115 +2,409 @@
 
 실시간 웹캠 분석을 바탕으로 사용자의 얼굴 및 눈 상태를 실시간 분석하여 졸음 및 집중력 저하 상태를 감지하고 경고를 알리는 Python 기반 컴퓨터 비전 어플리케이션입니다.
 
-본 프로젝트는 소프트웨어 공학적 완성도를 위해 **계층형 모듈러 아키텍처(Layered Modular Architecture)**를 채택하여 설계되었으며, 높은 동작 안정성과 손쉬운 확장성을 가집니다.
+## 기술 스택 요약
 
----
+| 구성 요소 | 기술 스택 | 주요 역할 |
+| :--- | :--- | :--- |
+| **언어** | Python 3.10+ | 시스템 핵심 로직 구동 및 런타임 제어 |
+| **컴퓨터 비전** | OpenCV | 비디오 프레임 캡처, 가로 반전, 이미지 프로세싱, HUD 및 GUI 렌더링 |
+| **얼굴 랜드마크 감지** | MediaPipe (Face Mesh) | CPU 기반 468개(또는 478개) 3D 얼굴 랜드마크 실시간 정밀 감지 및 추적 |
+| **수치 해석 및 기하 연산** | NumPy | 유클리드 거리 산출 및 다차원 배열 연산 |
+| **품질 보증 및 테스트** | Unittest | EAR 공식 계산 및 유한 상태 기계(FSM) 전이 로직 무결성 검증 |
 
-## 1. 주요 기능
-- **실시간 눈 랜드마크 트래킹**: MediaPipe Face Mesh 솔루션을 사용하여 얼굴 및 눈 주변부의 468개(또는 478개) 랜드마크 포인트를 실시간으로 정교하게 추적합니다.
-- **EAR(Eye Aspect Ratio) 정량적 측정**: 눈 주변 6개 좌표 간의 유클리드 거리를 바탕으로 실시간 눈 상태 비율을 완벽히 수치화합니다. (가로 길이 대비 세로 두 차례의 비율 연산)
-- **개인화 임계값 자동 보정 (Calibration)**: 시작 시 5초 동안 사용자의 기본 안구 구조 및 카메라 거리 등을 분석하여 개인용 EAR 경계 기준선(Threshold)을 실시간 자동 튜닝합니다.
-- **단계별 실시간 피로 분류 및 경보**:
-  - `Awake`: 정상 눈 뜸 상태
-  - `Drowsy`: 졸음 진입 의심 상태 (1초 연속 EAR 저하 시, 노란색 화면 가이드 및 알림음)
-  - `Sleeping`: 매우 위험한 취침 상태 (3초 연속 EAR 저하 시, 화면이 적색으로 깜빡이며 긴급 사이렌 재생)
-- **비차단식 비동기 오디오 경고**: 오디오 버퍼 재생이 비전 메인 루프를 방해하지 않도록 백그라운드 스레드에서 경고 알림음이 작동하여 FPS 프레임 드랍을 원천 차단합니다.
-- **주요 로그 저장**: 세션 구동 도중 발생한 모든 상태 전환(`Awake` -> `Drowsy` 등)과 해당 지속 시간, 이전 상태에서의 평균 EAR 수치를 CSV 포맷 파일(`logs/session_*.csv`)로 자동 영구 보관합니다.
 
----
+# 🎯 프로젝트 개요
 
-## 2. 기술 스택
-- **언어**: Python 3.10+
-- **라이브러리**:
-  - `OpenCV` (비디오 프레임 처리, 이미지 프로세싱 및 UI 렌더링)
-  - `MediaPipe` (고성능 실시간 Face Mesh / Landmark 검출)
-  - `NumPy` (안구 거리 계산 등 수치 해석 연산)
-  - `Unittest` (핵심 연산 모듈 및 상태 상태 전이 로직 검증)
+## 무엇을 만들었나?
 
----
+실시간 웹캠 영상으로 사용자의 **눈 상태를 분석**하여  
+졸음 및 집중력 저하 상태를 감지하고 **즉시 경고**하는 시스템
 
-## 3. 디렉토리 구조 및 시스템 아키텍처
+
+# 🔬 핵심 기술: EAR 알고리즘
+
+## Eye Aspect Ratio (눈 종횡비)
+
+**EAR(Eye Aspect Ratio, 눈 종횡비)**은 눈 주변에 지정된 6개의 랜드마크 포인트(P1~P6) 간의 거리를 활용하여 **눈의 가로 길이 대비 세로 길이의 비율**을 정량적으로 산출하는 수학적 공식입니다.
+
+*   **눈을 떴을 때**: 세로 거리($P2-P6$, $P3-P5$)가 충분히 멀어지므로 EAR 비율 값이 **증가**합니다.
+*   **눈을 감았을 때**: 세로 거리가 거의 0에 가까워지므로 EAR 비율 값이 **0에 수렴**합니다.
+*   **핵심 장점**: 얼굴의 실제 크기나 카메라와의 거리에 상관없이 **눈이 열린 비율만 추적**하기 때문에 일관성 있는 졸음 판단이 가능합니다.
+
 ```
-py_ai_project/
-├── .gitignore                  # Git 추적 제외 설정
-├── README.md                   # 프로젝트 전체 소개 및 가이드 문서
-├── requirements.txt            # 프로젝트 설치 라이브러리 목록
-├── main.py                     # 프로그램 진입점 (오케스트레이터)
-├── config.py                   # EAR 임계값, 카메라 해상도 등 설정 변수 모음
-├── Plan/
-│   ├── implementation_plan.md  # SmartEye 상세 개발 및 설계 계획서
-│   └── task.md                 # 진행 상황을 트래킹하는 태스크 목록
-├── src/
-│   ├── __init__.py
-│   ├── camera.py               # CameraManager: 프레임 캡처 라이프사이클 관리
-│   ├── detector.py             # FaceDetector: MediaPipe 얼굴 랜드마크 추출
-│   ├── analyzer.py             # EyeAnalyzer: EAR 공식 연산
-│   ├── classifier.py           # DrowsinessClassifier: 시계열 스무딩 및 상태 감지
-│   ├── alert.py                # AlertManager: 시청각 경보 수준 상태 동기화
-│   ├── renderer.py             # OverlayRenderer: 랜드마크 가시화 및 HUD 렌더링
-│   └── utils/
-│       ├── __init__.py
-│       ├── logger.py           # SessionLogger: 상태 전이 기록 CSV 파일 출력
-│       └── audio_player.py     # AudioPlayer: 백그라운드 비차단 경고음 재생
-└── tests/
-    ├── __init__.py
-    ├── test_analyzer.py        # EAR 수학 공식 검증 단위 테스트
-    └── test_classifier.py      # 상태 전환 조건 검증 단위 테스트
+        P2      P3
+         \      /
+    P1 ---+----+--- P4
+         /      \
+        P6      P5
 ```
 
-### 데이터 파이프라인
+$$EAR = \frac{||P2-P6|| + ||P3-P5||}{2 \times ||P1-P4||}$$
+
+
+## EAR 알고리즘 원리
+
+| 상태 | EAR 값 | 설명 |
+|------|--------|------|
+| 👁️ 눈 뜸 (Awake) | **0.25 ~ 0.35** | 세로 거리가 충분히 큼 |
+| 😪 졸음 (Drowsy) | **0.18 ~ 0.22** | 세로 거리가 줄어듦 |
+| 😴 수면 (Sleeping) | **< 0.18** | 눈이 거의 닫힘 |
+
+
+# 🧠 개인화 캘리브레이션
+
+## 사람마다 다른 눈 구조를 자동 보정
+
 ```
-[ Camera Frame ] (RGB Image)
-       │ (src/camera.py)
-[ Preprocessing ] (Resize & Format Conversion)
-       │ (src/detector.py)
-[ Face Mesh Detection ] (Output: Landmarks)
-       │ (src/detector.py)
-[ Eye Landmarks Extraction ] (Output: Eye coordinates)
-       │ (src/analyzer.py)
-[ EAR Calculation ] (Output: Average EAR: float)
-       │ (src/classifier.py)
-[ Drowsiness Classification ] (Output: Awake | Drowsy | Sleeping)
-       │ (src/alert.py)
-[ Alert Decision ] (Output: Async Sound Trigger)
-       │ (src/renderer.py)
-[ Overlay Rendering ] (Drawing contours & status bar)
-       │ (main.py)
-[ Screen Display ] & [ Logging ] (src/utils/logger.py)
+시작 후 5초 동안 정면 응시
+        ↓
+사용자 기본 EAR 평균값 수집
+        ↓
+개인 임계값 = 평균 EAR × 0.89
+        ↓
+맞춤 졸음 감지 기준 자동 적용
 ```
 
----
+## 캘리브레이션의 필요성
 
-## 4. 시작하기
+```
+         눈이 큰 사람           눈이 작은 사람
+         ┌──────────┐           ┌──────────┐
+EAR      │   0.32   │           │   0.24   │
+기본값    └──────────┘           └──────────┘
+         
+고정 임계값 0.22 적용 시:
+  → 눈이 작은 사람은 정상 상태도 "졸음"으로 오탐!
+  
+✅ 개인 캘리브레이션으로 오탐률 최소화
+```
 
-### 4.1 의존성 설치
-사용자 환경에 맞는 Python 3.10+ 가상환경을 생성하고 패키지를 설치합니다.
 
+# ⚙️ 시스템 아키텍처
+
+## 계층형 모듈러 구조 (Layered Modular Architecture)
+
+```
+┌─────────────────────────────────────────────┐
+│                   main.py                    │  ← 오케스트레이터
+├──────────┬──────────┬────────────┬──────────┤
+│ camera.py│detector.py│analyzer.py│classifier│  ← 처리 계층
+├──────────┴──────────┴────────────┴──────────┤
+│         alert.py  │  renderer.py             │  ← 출력 계층
+├───────────────────┴─────────────────────────┤
+│       utils/logger.py  │  utils/audio_player │  ← 유틸리티 계층
+└─────────────────────────────────────────────┘
+```
+
+
+## 데이터 파이프라인
+
+```
+📷 Camera Frame (RGB Image)
+        │
+        ▼
+🔄 Preprocessing  ── 리사이즈 & 포맷 변환
+        │
+        ▼
+🗺️ Face Mesh Detection  ── 468개 랜드마크 추출
+        │
+        ▼
+👁️ Eye Landmarks Extraction  ── 눈 6개 좌표 선별
+        │
+        ▼
+📐 EAR Calculation  ── 유클리드 거리 → 비율 계산
+        │
+        ▼
+🧠 Drowsiness Classification  ── Awake / Drowsy / Sleeping
+        │
+        ▼
+🔔 Alert Decision  ── 비동기 경보음 트리거
+        │
+        ▼
+🖥️ Overlay Rendering + 📄 CSV Logging
+```
+
+
+# 📦 객체지향 설계와 모듈별 역할
+
+## 단일 책임 원칙(SRP) 기반의 모듈 세분화
+
+컴퓨터 공학적 설계 원칙인 **단일 책임 원칙 (Single Responsibility Principle)**을 적용하여, 각 모듈이 단 하나의 책임과 역할만 수행하도록 결합도를 낮추고 응집도를 높였습니다.
+
+
+## 1. 데이터 입력 및 전처리 계층 (Input Layer)
+
+### 📹 `camera.py` : `CameraManager`
+*   **설계 방식**: 하드웨어 장치 제어 및 자원 라이프사이클 캡슐화.
+*   **주요 기능**: 
+    - OpenCV `VideoCapture` 리소스 제어 및 스레드 지연 없는 카메라 버퍼 조회.
+    - 예외 상황(장치 미연결 등) 발생 시 안전한 예외 복구 및 애플리케이션 그레이스풀 종료 제어.
+
+### 🗺️ `detector.py` : `FaceDetector`
+*   **설계 방식**: 비전 AI 파이프라인의 추상화 인터페이스 구현.
+*   **주요 기능**:
+    - MediaPipe Face Mesh 모델을 사용해 468차원 얼굴 공간 매핑.
+    - 정규화된 3D 이미지 랜드마크 좌표 중 눈 주변 인덱스만 필터링하여 프레임 비율에 맞는 2D 픽셀 좌표계로 역산 변환.
+
+
+## 2. 수치 분석 및 상태 기계 계층 (Domain Logic Layer)
+
+### 📐 `analyzer.py` : `EyeAnalyzer`
+*   **설계 방식**: 수학 연산 로직의 순수 함수(Pure Function) 분리.
+*   **주요 기능**:
+    - 기하학적 2차원 공간 상의 Euclidean Distance 알고리즘 수행.
+    - EAR(Eye Aspect Ratio) 수학적 계산 및 수치 불안정성 차단(분모가 0이 되는 Zero Division 예외 방지).
+
+### 🧠 `classifier.py` : `DrowsinessClassifier`
+*   **설계 방식**: 시계열 스무딩 및 유한 상태 기계 (Finite State Machine, FSM) 상태 전이 관리.
+*   **주요 기능**:
+    - `collections.deque` 자료구조를 이용한 이동 평균(Moving Average) 알고리즘으로 High-frequency 노이즈 제거.
+    - 5초간 사용자 기본 눈 EAR을 측정해 동적으로 기준값을 잡는 개인화 자동 보정(Calibration).
+    - 시간 누적 평가를 바탕으로 한 `Awake` ↔ `Drowsy` ↔ `Sleeping` FSM 상태 상태 천이 핸들링.
+
+
+## 3. 출력 및 피드백 계층 (Output Layer)
+
+### 🔔 `alert.py` : `AlertManager`
+*   **설계 방식**: 중개자 패턴(Mediator Pattern)을 차용한 출력 동기화 코디네이션.
+*   **주요 기능**:
+    - 상태 전환 이벤트를 인터셉트하여 시각 플래시 경보와 오디오 엔진 간 동작 수준 조율.
+    - 중복 경보 시작 요청을 필터링해 시스템 오버헤드 최적화.
+
+### 🖥️ `renderer.py` : `OverlayRenderer`
+*   **설계 방식**: 뷰(View)의 템플릿화 및 HUD 드로잉 최적화.
+*   **주요 기능**:
+    - 반투명 HUD 탑바, 눈가 윤곽선 다각형 그리기(Polylines), 수치 그래픽 바 오버레이.
+    - 졸음 경고 주황색 프레임 테두리 및 4Hz 점멸 붉은색 풀스크린 경고 박스 출력.
+
+
+## 4. 백그라운드 인프라 계층 (Utility/Infrastructure Layer)
+
+### 🔊 `utils/audio_player.py` : `AudioPlayer`
+*   **설계 방식**: 멀티스레딩(Multithreading) 및 크로스 플랫폼 비동기 I/O 설계.
+*   **주요 기능**:
+    - 비차단식(Non-blocking) 경고음 작동을 위해 백그라운드 스레드 생성 후 독립 구동.
+    - 런타임에 운영체제 플랫폼(Win/Mac/Linux)을 감지하여 알맞은 오디오 드라이버 API 선택적 연동.
+
+### 📄 `utils/logger.py` : `SessionLogger`
+*   **설계 방식**: 데이터 영속화(Data Persistence) 및 파일 I/O 스트리밍.
+*   **주요 기능**:
+    - 상태 전이 순간을 이벤트 기반(Event-driven)으로 포착해 발생 시각, 천이 지속 시간, 통계 EAR 수치를 CSV 포맷으로 디스크 파일에 영구 기록.
+
+
+# 🚦 3단계 졸음 감지 시스템
+
+## 상태 전환 다이어그램
+
+```
+                  EAR 정상 회복
+         ┌────────────────────────────┐
+         ▼                            │
+   ┌───────────┐    1초 연속          ┌───────────┐    3초 연속    ┌────────────┐
+   │  😀 AWAKE │──  EAR 저하 ──────▶│ 😪 DROWSY │── EAR 저하 ──▶│ 😴 SLEEPING│
+   └───────────┘                     └───────────┘                └────────────┘
+   화면: 정상 (녹색)               화면: 황색 경고               화면: 적색 점멸
+   알림: 없음                       알림: 경고음 1회              알림: 긴급 사이렌
+```
+
+
+## 단계별 반응 상세
+
+### 😀 AWAKE (정상)
+- EAR ≥ 개인 임계값
+- 화면 테두리: **녹색**
+- 알림 없음
+
+### 😪 DROWSY (졸음 진입)
+- EAR < 임계값 **1초 지속**
+- 화면 테두리: **황색 (Yellow)**
+- 경고음 1회 재생
+
+### 😴 SLEEPING (위험)
+- EAR < 임계값 **3초 지속**
+- 화면: **적색 점멸 (Flashing Red)**
+- 긴급 사이렌 반복 재생
+
+
+# 🔧 핵심 구현 상세
+
+## 비차단식 비동기 오디오 (Non-Blocking Audio)
+
+### 문제
+```python
+# ❌ 동기 재생: 경고음 재생 동안 프레임 처리가 멈춤
+winsound.PlaySound("alert.wav", winsound.SND_FILENAME)
+# → FPS 드랍 발생, 실시간성 훼손
+```
+
+### SmartEye의 해결책
+```python
+# ✅ 비동기 재생: 백그라운드 스레드에서 분리 실행
+class AudioPlayer:
+    def play_alert(self):
+        thread = threading.Thread(target=self._play)
+        thread.daemon = True
+        thread.start()
+# → 메인 루프 FPS 유지, 경고음도 정상 재생
+```
+
+
+## 이동 평균 스무딩 (Moving Average Smoothing)
+
+```
+원본 EAR: [0.28, 0.15, 0.27, 0.26, 0.14]  ← 순간 노이즈 포함
+                    ↓ window=5 이동 평균
+스무딩 EAR: [0.22, 0.22, 0.22, 0.22, 0.22]  ← 안정화된 값
+
+→ 눈 깜빡임(순간 저하)을 졸음으로 오탐하지 않음
+```
+
+
+# 📊 세션 로깅 시스템
+
+## 자동 CSV 기록
+
+모든 상태 전환을 `logs/session_YYYYMMDD_HHMMSS.csv`로 자동 저장
+
+```
+timestamp,          from_state, to_state,  duration_sec, avg_ear
+2025-05-26 10:00:01, AWAKE,     DROWSY,    0.0,          0.231
+2025-05-26 10:00:05, DROWSY,    AWAKE,     4.2,          0.198
+2025-05-26 10:00:23, AWAKE,     DROWSY,    18.0,         0.235
+2025-05-26 10:00:28, DROWSY,    SLEEPING,  5.1,          0.172
+```
+
+### 활용 방안
+- 📈 개인 졸음 패턴 분석
+- ⏰ 집중 지속 시간 측정
+- 📉 피로 누적 추이 모니터링
+
+
+# ✅ 품질 보증: 단위 테스트
+
+## 테스트 커버리지
+
+### `test_analyzer.py` — EAR 수학 공식 검증
+```python
+def test_ear_open_eye(self):
+    # 눈이 완전히 열린 상태의 EAR은 0 초과여야 함
+    self.assertGreater(ear, 0)
+
+def test_ear_closed_eye(self):
+    # 눈이 완전히 닫힌 상태의 EAR은 거의 0이어야 함
+    self.assertAlmostEqual(ear, 0.0, places=3)
+```
+
+### `test_classifier.py` — 상태 전환 조건 검증
+```python
+def test_drowsy_state_transition(self):
+    # 1초 이상 EAR 저하 시 DROWSY 전환 확인
+
+def test_sleeping_state_transition(self):
+    # 3초 이상 EAR 저하 시 SLEEPING 전환 확인
+```
+
+
+## 테스트 실행
 ```bash
-# 가상환경 생성 및 활성화
-python3 -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python -m unittest discover -s tests
+# 결과: OK (모든 테스트 통과)
+```
 
-# pip 업그레이드 및 패키지 설치
+
+# 🚀 시작하기
+
+## 설치 및 실행 (4단계)
+
+### Step 1. 저장소 복제 및 이동
+```bash
+git clone <Repository-URL>
+cd SmartEye-Drowsiness-Detection-Python-
+```
+
+### Step 2. 가상환경 생성 및 활성화
+* **Windows (PowerShell)**:
+  ```powershell
+  python -m venv .venv
+  .venv\Scripts\Activate.ps1
+  ```
+  *(참고: 권한 에러 발생 시 `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process` 실행)*
+* **macOS / Linux**:
+  ```bash
+  python3 -m venv .venv
+  source .venv/bin/activate
+  ```
+
+### Step 3. 의존성 패키지 설치
+```bash
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 4.2 실행 및 사용 방법
+### Step 4. 프로그램 실행
 ```bash
 python main.py
 ```
-- **초기 캘리브레이션 (5초)**: 시작 직후 화면 상단에 `STATE: CALIBRATING` 메시지와 진행률(%)이 표시됩니다. 편안하게 정면을 약 5초 동안 응시해주시면 됩니다. 수집된 평소 눈 크기의 75% 수준이 사용자의 임계치로 자동 저장됩니다.
-- **수동 재캘리브레이션 (`c` 키)**: 사용자가 카메라와 멀어지거나 밝기가 변해 임계값 재설정이 필요할 때, `c` 키를 누르면 즉시 5초간 재캘리브레이션 세션이 실행됩니다.
-- **종료 (`q` 키)**: 구동 화면에서 `q` 키를 누르면 모든 카메라 리소스와 스레드가 깔끔히 자원 반환되며 프로그램이 정상 종료됩니다.
 
-### 4.3 단위 테스트 수행
-```bash
-python -m unittest discover -s tests
+## ⌨️ 키보드 조작 및 사용법
+| 기능 | 입력 키 | 동작 설명 |
+|------|:-------:|-----------|
+| **자동 보정 (Calibration)** | 시작 후 5초 | 정면을 편안하게 응시하여 개인 기본 EAR 설정 |
+| **수동 재보정** | `c` | 카메라 각도/조명 변화 시 임계치 실시간 재보정 |
+| **프로그램 종료** | `q` | 카메라 및 비동기 오디오 스레드 안전하게 해제 후 종료 |
+
+
+# 🚀 개선 방향 및 로드맵
+
+```
+현재 v1 (EAR 기반)
+        │
+        ▼
+v2: 눈 깜빡임 빈도(Blink Rate) 추가
+        │
+        ▼
+v3: 시선 이탈(Gaze Detection) 추가
+        │
+        ▼
+v4: 적외선(IR) 카메라 지원 + 히스토그램 평활화
+        │
+        ▼
+v5: 종합 주의력 집중 점수 (Attention Score) 모델
 ```
 
----
 
-## 5. 프로젝트 한계점 및 개선 방향
-- **저조도 검출 제한**: 어두운 야간이나 조명이 약한 환경에서 웹캠의 노이즈와 밝기 저하로 MediaPipe 얼굴 감지율이 하락할 수 있습니다. 이는 추후 적외선(IR) 카메라 연계 지원 및 히스토그램 평활화 등 전처리 강화로 해결 가능합니다.
-- **복합 생체 지표의 결합 (v5 로드맵)**: 안구 깜빡임 빈도(Blink rate)나 시선 이탈(Gaze detection) 등을 추가 확보하여 더욱 정교한 종합 주의력 집중 점수 산정 모델로 발전시킬 예정입니다.
+# 📌 프로젝트 요약
+
+## SmartEye 핵심 가치
+
+```
+┌─────────────────────────────────────────────────────┐
+│                                                     │
+│   🔑 Key Innovation                                 │
+│                                                     │
+│   일반 웹캠 + EAR 알고리즘 + 개인화 캘리브레이션    │
+│   = 고성능 졸음 감지                               │
+│                                                     │
+│   💡 Technical Highlights                           │
+│                                                     │
+│   ✅ 비차단 비동기 오디오 (FPS 손실 없음)          │
+│   ✅ 이동 평균 스무딩 (오탐 최소화)                │
+│   ✅ 개인화 캘리브레이션 (맞춤 임계값)             │
+│   ✅ 계층형 모듈 아키텍처 (높은 확장성)            │
+│   ✅ 자동 세션 로깅 (CSV 기록)                     │
+│   ✅ 단위 테스트 (품질 보증)                       │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+
+# 🙏 감사합니다
+
+## Q & A
+
+> **SmartEye** — Real-Time Drowsiness & Focus Detection System  
+> GitHub: `SmartEye-Drowsiness-Detection-Python-`
+
+
+*발표자료 작성: SmartEye Project Team*  
+*작성일: 2026년 5월*
