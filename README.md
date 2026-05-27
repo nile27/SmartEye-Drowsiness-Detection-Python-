@@ -375,5 +375,4 @@ python main.py
 > GitHub: `SmartEye-Drowsiness-Detection-Python-`
 
 
-*발표자료 작성: SmartEye Project Team*  
-*작성일: 2026년 5월*
+
